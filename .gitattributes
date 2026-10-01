@@ -1,0 +1,6 @@
+# 统一行尾，避免 Windows 上 .bat 被 checkout 成 LF 后行为异常
+* text=auto
+*.bat text eol=crlf
+*.sh  text eol=lf
+*.png binary
+*.jpg binary
