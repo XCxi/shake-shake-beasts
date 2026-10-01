@@ -54,6 +54,25 @@ canvas{display:block;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
   padding:9px 18px;border-radius:999px;font-size:15px;font-weight:700;color:#ffe9a8;max-width:88vw;text-align:center;
   background:rgba(20,16,36,.88);border:1px solid rgba(255,255,255,.18);opacity:0;transition:all .22s ease}
 .toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
+.tools{display:flex;gap:8px;padding-top:6px;flex:0 0 auto}
+.tools button{flex:1;padding:9px 6px;border-radius:14px;font-size:13px;color:#fff;cursor:pointer;font-family:inherit;
+  background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.14)}
+.tools button b{color:#ffd98a}
+.tools button.on{background:linear-gradient(180deg,#ffd98a,#ff9d3c);border-color:#ffe6b0;color:#3a2200}
+.tools button.on b{color:#3a2200}
+.tools button:disabled{opacity:.35;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:4px 0 8px}
+.cell{aspect-ratio:1/1;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);cursor:pointer;color:#fff;font-family:inherit;
+  font-size:14px;font-weight:600;padding:4px}
+.cell small{font-size:10px;letter-spacing:-1px;color:#ffd98a;font-weight:400}
+.cell.locked{opacity:.32;cursor:not-allowed}
+.cell.best{border-color:#ffd98a;background:rgba(255,217,138,.16)}
+.gal{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:6px 0 10px}
+.gal div{aspect-ratio:1/1;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.16);filter:grayscale(1) brightness(.45)}
+.gal div.has{filter:none;background:rgba(255,255,255,.13);border-style:solid;border-color:rgba(255,255,255,.4)}
+.hint{font-size:11.5px;color:#9d97c4;margin:2px 0 8px}
 </style>
 </head>
 <body>
@@ -66,6 +85,10 @@ canvas{display:block;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
     <button class="icon" id="btnSound" title="音效">🔊</button>
   </div>
   <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="tools">
+    <button class="tool" id="btnHeavy" title="每关 1 次：范围更大、威力更猛的一锤">💥 重锤 <b>1</b></button>
+    <button class="tool" id="btnMagnet" title="每关 1 次：把这一圈的萌兽朝落点吸过来">🧲 磁锤 <b>1</b></button>
+  </div>
   <div class="foot">
     <button id="btnRestart">🔄 重敲本关</button>
     <button id="btnDaily">🔥 今日挑战</button>
@@ -115,7 +138,7 @@ function collide(balls,ev,add,allowMerge){
       if(d2>=rr*rr) continue;
       var d=Math.sqrt(d2)||0.0001, nx=dx/d, ny=dy/d, pen=rr-d;
       var rvx=b.vx-a.vx, rvy=b.vy-a.vy, vn=rvx*nx+rvy*ny;      /* vn<0 表示正在靠近 */
-      if(allowMerge&&a.lv===b.lv&&a.lv<CHAIN.length-1&&(-vn)>FIELD.MERGE_V){   /* 撞得够狠才合成 */
+      if(allowMerge&&a.lv===b.lv&&a.lv<CHAIN.length-1&&(-vn)>(FIELD.MERGE_V_NOW||FIELD.MERGE_V)){   /* 撞得够狠才合成 */
         a.dead=true; b.dead=true;
         var nl=a.lv+1, mx=(a.x+b.x)*0.5, my=(a.y+b.y)*0.5;
         add.push({id:BID++,lv:nl,r:CHAIN[nl].r,x:mx,y:my,vx:(a.vx+b.vx)*0.5,vy:(a.vy+b.vy)*0.5,spin:0,age:0,dead:false,squash:1,fresh:true});
@@ -296,7 +319,14 @@ var cv=document.getElementById('cv'), ctx=cv.getContext('2d'), stage=document.ge
 var hLevel=document.getElementById('hLevel'), hScore=document.getElementById('hScore'), hTarget=document.getElementById('hTarget');
 var hTaps=document.getElementById('hTaps'), hChain=document.getElementById('hChain');
 var btnSound=document.getElementById('btnSound'), overlay=document.getElementById('overlay'), card=document.getElementById('card');
+var btnHeavy=document.getElementById('btnHeavy'), btnMagnet=document.getElementById('btnMagnet');
 var S=null, aim={x:FIELD.W/2,y:FIELD.H*0.55}, scale=1, lastTapT=0;
+/* 存档：每关星级 + 图鉴点亮 */
+var stars=LS.get('zz_stars',{}) || {};
+var seen=LS.get('zz_seen',[]) || [];
+if(!seen[0]){ seen[0]=1; }                        /* 🐭 是最基础的，一开始就算点亮 */
+function saveStars(){ LS.set('zz_stars',stars); }
+function saveSeen(){ LS.set('zz_seen',seen); }
 
 function fit(){
   var w=stage.clientWidth, h=stage.clientHeight;
@@ -316,7 +346,8 @@ function startLevel(level,mode,seed){
   seedRnd(seed==null?((Math.random()*1e9)|0):seed);
   var balls=buildPile(plan);
   S={level:level,mode:mode||'campaign',balls:balls,ev:{merges:[]},fx:[],waves:[],score:0,target:plan.target,
-     taps:plan.taps,tapsUsed:0,chain:0,chainT:0,shake:0,frozen:false,over:false,endT:0,t:0,plan:plan,merges:0};
+     taps:plan.taps,tapsUsed:0,chain:0,chainT:0,shake:0,frozen:false,over:false,endT:0,t:0,plan:plan,merges:0,
+     heavy:1,magnet:1,armed:null,stars:0,mergeBoost:0};
   updateHud(); hideCard(); ac(); fit();
   toast('第 '+level+' 关 · 目标 '+plan.target+' 分 · 可敲 '+plan.taps+' 次');
 }
@@ -329,16 +360,38 @@ function updateHud(){
   hTaps.className='pill'+(S.taps<=1?' low':(S.taps<=3?' hot':''));
   hChain.textContent='连锁 x'+Math.max(1,S.chain);
   hChain.className='pill'+(S.chain>1?' hot':'');
+  btnHeavy.innerHTML='💥 重锤 <b>'+S.heavy+'</b>';
+  btnMagnet.innerHTML='🧲 磁锤 <b>'+S.magnet+'</b>';
+  btnHeavy.disabled=S.heavy<=0; btnMagnet.disabled=S.magnet<=0;
+  btnHeavy.className='tool'+(S.armed==='heavy'?' on':'');
+  btnMagnet.className='tool'+(S.armed==='magnet'?' on':'');
 }
 
 /* ================= 敲击：扩散的冲击波 ================= */
 /*==GAME2==*/
-function knock(x,y){
-  if(!S||S.over||S.frozen||S.taps<=0) return;
-  S.taps--; S.tapsUsed++; lastTapT=S.t;
-  S.waves.push({x:x,y:y,r:22,max:205,speed:1080,power:760,hit:{}});
-  S.shake=Math.min(1,S.shake+.55);
+/* kind: 不传就是普通敲；'heavy' 重锤（范围/威力更大）；'magnet' 磁锤（把这一圈朝落点吸） */
+function knock(x,y,forceKind){
+  if(!S||S.over||S.frozen) return;
+  var kind=forceKind||S.armed||'normal';
+  if(kind==='heavy'&&S.heavy<=0) kind='normal';
+  if(kind==='magnet'&&S.magnet<=0) kind='normal';
+  if(kind==='normal'){
+    if(S.taps<=0) return;
+    S.taps--;
+  }else if(kind==='heavy'){ S.heavy--; S.armed=null; }
+  else { S.magnet--; S.armed=null; S.mergeBoost=1.1; }   /* 磁锤：吸成一团，并且短时间内轻碰也能合体 */
+  S.tapsUsed++; lastTapT=S.t;
+  var w;
+  if(kind==='heavy')       w={x:x,y:y,r:26,max:300,speed:1150,power:1180,dir:1,hit:{},kind:kind};
+  else if(kind==='magnet') w={x:x,y:y,r:18,max:265,speed:1000,power:1150,dir:-1,hit:{},kind:kind};
+  else                     w={x:x,y:y,r:22,max:205,speed:1080,power:760,dir:1,hit:{},kind:'normal'};
+  S.waves.push(w);
+  S.shake=Math.min(1,S.shake+.55+(kind==='heavy'?.35:0));
+  if(kind==='magnet') beep(300,.25,'sine',.12);
+  else if(kind==='heavy') beep(70,.35,'sine',.22);
   sfx.tap(); updateHud();
+  if(kind==='heavy') toast('💥 重锤！');
+  else if(kind==='magnet') toast('🧲 磁力碾压：吸成一团，轻碰也合体');
 }
 function stepWaves(dt){
   for(var i=S.waves.length-1;i>=0;i--){
@@ -350,10 +403,14 @@ function stepWaves(dt){
       var dx=b.x-w.x, dy=b.y-w.y, d=Math.sqrt(dx*dx+dy*dy)||.001;
       if(d-b.r>w.r) continue;                       /* 波前还没扫到它 */
       w.hit[b.id]=1;
-      var fall=Math.max(0,1-d/w.max);
+      var fall=w.dir<0?Math.max(.15,1-.55*d/w.max):Math.max(0,1-d/w.max);
       if(fall<=0) continue;
       var f=w.power*fall*Math.pow(18/b.r,0.55);
-      b.vx+=dx/d*f; b.vy+=dy/d*f-f*.32;             /* 顺带往上抛一点，看着才爽 */
+      if(w.dir<0){                                  /* 磁锤：朝落点吸过去 */
+        b.vx-=dx/d*f*1.35; b.vy-=dy/d*f*1.35;
+      }else{
+        b.vx+=dx/d*f; b.vy+=dy/d*f-f*.32;           /* 顺带往上抛一点，看着才爽 */
+      }
       b.squash=Math.min(1,b.squash+fall*.7);
     }
     if(w.r>w.max) S.waves.splice(i,1);
@@ -378,6 +435,7 @@ function handleMerges(){
     S.chain++; S.chainT=1.0; S.merges++;
     var gain=(m.lv*(m.lv+1))/2*S.chain;
     S.score+=gain;
+    if(!seen[m.lv]){ seen[m.lv]=1; saveSeen(); }     /* 图鉴点亮 */
     if(m.lv>=CHAIN.length-1){ S.score+=500; addFx(m.x,m.y,m.lv,500,S.chain); S.shake=1; toast('🐲 龙王降临！+500'); }
     S.shake=Math.min(1,S.shake+.2+m.lv*.03);
     addFx(m.x,m.y,m.lv,gain,S.chain);
@@ -399,8 +457,13 @@ function aliveBalls(){ return S?S.balls.length:0; }
 function clearLevel(){
   S.frozen=true; sfx.clear();
   var bonus=S.taps*15, perfect=(S.balls.length<=1);   /* 省下的敲击换分，但不能盖过本关得分 */
+  var playScore=S.score;                              /* 星级只看敲出来的分，不算奖励 */
+  var ratio=playScore/Math.max(1,S.target);
+  var star=ratio>=2.4?3:(ratio>=1.6?2:1);
+  S.stars=star;
   S.score+=bonus;
   if(S.mode!=='daily'&&S.level+1>bestLevel){ bestLevel=Math.min(TOTAL_LEVELS,S.level+1); LS.set('zz_best',bestLevel); }
+  if(S.mode!=='daily'&&(!stars[S.level]||stars[S.level]<star)){ stars[S.level]=star; saveStars(); }
   if(S.mode==='daily'){
     var k=todayKey(), r=LS.get('zz_daily',{});
     if(!r[k]||r[k]<S.score){ r[k]=S.score; LS.set('zz_daily',r); }
@@ -415,18 +478,19 @@ function clearLevel(){
       title:'🏆 '+TOTAL_LEVELS+' 关全敲穿！',
       sub:'总分 '+S.score+' 分 · 最后剩下一只 '+CHAIN[mx].e,
       body:'你把 '+TOTAL_LEVELS+' 关全部敲穿了，最后一关的记录会一直留在首页。'+tail,
-      buttons:[{label:'炫耀一下成绩',cls:'btn',fn:share},
-               {label:'重敲最后一关',cls:'btn ghost',fn:function(){ startLevel(TOTAL_LEVELS,'campaign'); }},
-               {label:'回到首页',cls:'btn ghost',fn:home}]
+      buttons:[{label:'选关刷星',cls:'btn',fn:levelSelect},
+               {label:'看萌兽图鉴',cls:'btn ghost',fn:gallery},
+               {label:'炫耀一下成绩',cls:'btn ghost',fn:share}]
     });
     return;
   }
+  var starTxt='★'.repeat(star)+'☆'.repeat(3-star);
   showCard({
     title:'🎉 第 '+S.level+' 关敲穿',
-    sub:'得分 '+S.score+'（敲击得分 '+(S.score-bonus)+' + 奖励 '+bonus+'）',
-    body:'目标 '+S.target+' 分，已达成。'+tail,
+    sub:starTxt+'　得分 '+S.score+'（敲击 '+playScore+' + 奖励 '+bonus+'）',
+    body:'目标 '+S.target+' 分，达成 <b>'+ratio.toFixed(2)+' 倍</b>。'+tail,
     buttons:[{label:'下一关 ▶',cls:'btn',fn:function(){ startLevel(S.level+1,'campaign'); }},
-             {label:'重敲本关',cls:'btn ghost',fn:function(){ startLevel(S.level,S.mode); }},
+             {label:'选关刷星',cls:'btn ghost',fn:levelSelect},
              {label:'炫耀一下成绩',cls:'btn ghost',fn:share}]
   });
 }
@@ -454,11 +518,13 @@ function frame(ts){
     acc+=dt; var guard=0;
     while(acc>=1/120&&guard++<14){
       stepWaves(1/120);
+      FIELD.MERGE_V_NOW=(S.mergeBoost>0?FIELD.MERGE_V*0.32:FIELD.MERGE_V);   /* 磁锤期间轻碰也能合体 */
       physicsStep(S.balls,1/120,S.ev,true);
       handleMerges();
       acc-=1/120;
     }
     S.t+=dt;
+    if(S.mergeBoost>0) S.mergeBoost-=dt;
     if(S.chainT>0){ S.chainT-=dt; if(S.chainT<=0&&S.chain>0){ S.chain=0; updateHud(); } }
     deOverlap(S.balls,2);                            /* 每帧顺手把挤在一起的球推开一点 */
     if(S.shake>0) S.shake=Math.max(0,S.shake-dt*3.0);
@@ -505,10 +571,15 @@ function draw(){
     if(S.shake>0) ctx.translate((rnd()-.5)*14*S.shake,(rnd()-.5)*14*S.shake);
     for(var w=0;w<S.waves.length;w++){
       var wv=S.waves[w], p=wv.r/wv.max;
+      var col=wv.kind==='heavy'?'255,145,60':(wv.kind==='magnet'?'110,230,255':'255,236,180');
+      ctx.save();
+      if(wv.kind==='magnet') ctx.setLineDash([10,8]);
       ctx.beginPath(); ctx.arc(wv.x,wv.y,wv.r,0,6.2832);
-      ctx.lineWidth=Math.max(1.5,9*(1-p)); ctx.strokeStyle='rgba(255,236,180,'+(0.85*(1-p))+')'; ctx.stroke();
-      ctx.beginPath(); ctx.arc(wv.x,wv.y,wv.r*0.72,0,6.2832);
-      ctx.lineWidth=2; ctx.strokeStyle='rgba(255,180,255,'+(0.35*(1-p))+')'; ctx.stroke();
+      ctx.lineWidth=Math.max(1.5,(wv.kind==='heavy'?13:9)*(1-p));
+      ctx.strokeStyle='rgba('+col+','+(0.85*(1-p))+')'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(wv.x,wv.y,wv.r*(wv.kind==='heavy'?0.6:0.72),0,6.2832);
+      ctx.lineWidth=2; ctx.strokeStyle='rgba('+col+','+(0.4*(1-p))+')'; ctx.stroke();
+      ctx.restore();
     }
     for(var i=0;i<S.balls.length;i++) drawBall(S.balls[i]);
     for(var k=0;k<S.fx.length;k++){
@@ -525,12 +596,13 @@ function draw(){
         ctx.fillStyle=f.c; ctx.fillText(f.txt,f.x,f.y-pp*26); ctx.globalAlpha=1;
       }
     }
-    if(!S.frozen&&S.taps>0){
+    if(!S.frozen&&(S.taps>0||S.armed)){
+      var ac2=S.armed==='heavy'?'255,160,80':(S.armed==='magnet'?'120,235,255':'255,255,255');
       ctx.save();
       ctx.beginPath(); ctx.arc(aim.x,aim.y,16,0,6.2832);
-      ctx.setLineDash([5,6]); ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.stroke();
+      ctx.setLineDash([5,6]); ctx.lineWidth=2; ctx.strokeStyle='rgba('+ac2+',.6)'; ctx.stroke();
       ctx.setLineDash([]);
-      ctx.beginPath(); ctx.arc(aim.x,aim.y,3,0,6.2832); ctx.fillStyle='rgba(255,236,180,.9)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(aim.x,aim.y,3,0,6.2832); ctx.fillStyle='rgba('+ac2+',.9)'; ctx.fill();
       ctx.restore();
     }
     if(S.tapsUsed===0&&S.level===1&&S.t<8){
@@ -606,8 +678,21 @@ document.addEventListener('keydown',function(e){
   if(e.key==='ArrowUp'){ aim.y=Math.max(4,aim.y-step); e.preventDefault(); }
   if(e.key==='ArrowDown'){ aim.y=Math.min(FIELD.H-4,aim.y+step); e.preventDefault(); }
   if(e.key===' '||e.key==='Enter'){ knock(aim.x,aim.y); e.preventDefault(); }
+  if(e.key==='1'){ armTool('heavy'); e.preventDefault(); }
+  if(e.key==='2'){ armTool('magnet'); e.preventDefault(); }
   if(e.key==='r'||e.key==='R') startLevel(S.level,S.mode);
 });
+/* 特殊锤：点一下"装上"，下一次敲击就用它 */
+function armTool(kind){
+  if(!S||S.over||S.frozen) return;
+  if(kind==='heavy'&&S.heavy<=0) return;
+  if(kind==='magnet'&&S.magnet<=0) return;
+  S.armed=(S.armed===kind)?null:kind;
+  ac(); updateHud();
+  toast(S.armed?(kind==='heavy'?'💥 重锤已装上，敲下去！':'🧲 磁锤已装上，敲下去！'):'已取消');
+}
+btnHeavy.addEventListener('click',function(){ armTool('heavy'); });
+btnMagnet.addEventListener('click',function(){ armTool('magnet'); });
 btnSound.addEventListener('click',function(){
   soundOn=!soundOn; LS.set('zz_sound',soundOn);
   btnSound.textContent=soundOn?'🔊':'🔇'; if(soundOn){ ac(); beep(660,.08,'triangle',.08); }
@@ -623,10 +708,14 @@ function startDaily(){
 /* ================= 首页 ================= */
 function home(){
   var k=todayKey(), ds=(LS.get('zz_daily',{})[k])||0;
-  var ladder='',i;
+  var ladder='',i,totalStars=0,got=0;
   for(i=0;i<CHAIN.length;i++) ladder+='<span>'+CHAIN[i].e+'</span>';
+  for(i=0;i<CHAIN.length;i++){ if(seen[i]) got++; }
+  for(i=1;i<=TOTAL_LEVELS;i++){ totalStars+=(stars[i]||0); }
   var btns=[
     {label:(bestLevel>1?'继续第 '+bestLevel+' 关 ▶':'开始第 1 关 ▶'),cls:'btn',fn:function(){ startLevel(bestLevel,'campaign'); }},
+    {label:'🗺️ 选关刷星（★'+totalStars+'/'+(TOTAL_LEVELS*3)+'）',cls:'btn ghost',fn:levelSelect},
+    {label:'📖 萌兽图鉴（'+got+'/'+CHAIN.length+'）',cls:'btn ghost',fn:gallery},
     {label:'🔥 今日挑战'+(ds?'（今日 '+ds+' 分）':''),cls:'btn ghost',fn:startDaily}
   ];
   if(bestLevel>1) btns.push({label:'从第 1 关重敲',cls:'btn ghost',fn:function(){ bestLevel=1; LS.set('zz_best',1); startLevel(1,'campaign'); }});
@@ -638,9 +727,52 @@ function home(){
       '2️⃣ 波前扫到的萌兽会被掀起来乱撞<br>'+
       '3️⃣ <b>撞得够狠</b>的同款才会合体（轻轻靠着不算）<br>'+
       '4️⃣ 敲击次数有限，分数到目标就过关<br>'+
-      '5️⃣ 连成一串会叠<b>连锁倍率</b>，省下的次数还能换分</div>'+
+      '5️⃣ 每关还有 <b>💥重锤</b> 和 <b>🧲磁锤</b> 各一次，别浪费<br>'+
+      '6️⃣ 达成 1.6 倍目标给 2 星、2.4 倍给 3 星</div>'+
       '<div class="ladder">'+ladder+'</div>',
     buttons:btns
+  });
+}
+
+/* ================= 选关 / 图鉴 ================= */
+function levelSelect(){
+  var cells='',i;
+  for(i=1;i<=TOTAL_LEVELS;i++){
+    var locked=(i>bestLevel), st=stars[i]||0;
+    cells+='<button class="cell'+(locked?' locked':'')+(st===3?' best':'')+'" data-lv="'+i+'"'+(locked?' disabled':'')+'>'+
+      (locked?'🔒':i)+'<small>'+(locked?'':'★'.repeat(st)+'☆'.repeat(3-st))+'</small></button>';
+  }
+  showCard({
+    title:'🗺️ 选择关卡',
+    sub:'已解锁 ' + bestLevel + '/' + TOTAL_LEVELS + ' 关 · 星星可以重打刷新',
+    body:'<div class="grid">'+cells+'</div>',
+    buttons:[{label:'回到首页',cls:'btn ghost',fn:home}]
+  });
+  var btns=card.querySelectorAll('.cell[data-lv]');
+  for(i=0;i<btns.length;i++){
+    (function(el){
+      el.addEventListener('click',function(){
+        ac();
+        var lv=parseInt(el.getAttribute('data-lv'),10);
+        if(lv>bestLevel) return;
+        startLevel(lv,'campaign');
+      });
+    })(btns[i]);
+  }
+}
+function gallery(){
+  var html='',i,got=0;
+  for(i=0;i<CHAIN.length;i++){
+    var has=!!seen[i]; if(has) got++;
+    html+='<div class="'+(has?'has':'')+'" title="'+CHAIN[i].r+'px">'+CHAIN[i].e+'</div>';
+  }
+  var dragon=seen[CHAIN.length-1];
+  showCard({
+    title:'📖 萌兽图鉴',
+    sub:'已点亮 '+got+'/'+CHAIN.length+(dragon?' · 🐲 龙王已现世！':' · 🐲 龙王还没出现'),
+    body:'<div class="gal">'+html+'</div><div class="hint">合出来的萌兽会永久点亮（存在本机）。越往后越大只，龙王要靠 5 关以后的大堆才敲得出来。</div>',
+    buttons:[{label:'回到首页',cls:'btn ghost',fn:home},
+             {label:'选关刷星',cls:'btn ghost',fn:levelSelect}]
   });
 }
 

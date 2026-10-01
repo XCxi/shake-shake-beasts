@@ -18,6 +18,9 @@ function updateHud() { }
 function toast() { }
 function showCard() { }
 function hideCard() { }
+/* 新增玩法用到的桩：图鉴点亮 / 星级存档 / 提示音 */
+var seen = [], stars = {};
+function saveSeen() { } function saveStars() { } function beep() { }
 var document = undefined;
 eval(phys); eval(g1); eval(g2);
 
