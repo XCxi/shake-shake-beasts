@@ -4,7 +4,7 @@
 >
 > A one-verb physics puzzle: **smash the pile, let the shockwave chain-merge it.** No install, no assets, one HTML file.
 
-🎮 **在线试玩 → 【发布脚本跑完会打印你的网址，粘到这一行】**
+🎮 **在线试玩 → <https://xcxi.github.io/shake-shake-beasts/>** （手机浏览器也能玩）
 
 ![游戏截图](docs/screenshot-win.png)
 
