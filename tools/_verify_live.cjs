@@ -21,13 +21,15 @@ const sleep = ms => new Promise(s => setTimeout(s, ms));
         console.log('  星级 spread ★ repeat   :', html.indexOf("'★'.repeat(star)") >= 0);
         console.log('  选关地图 levelSelect   :', html.indexOf('function levelSelect') >= 0);
         console.log('  萌兽图鉴 gallery       :', html.indexOf('function gallery') >= 0);
+        console.log('  无尽模式 startEndless  :', html.indexOf('function startEndless') >= 0 && html.indexOf('planForEndless') >= 0);
+        console.log('  无尽曲线 1.15 复利     :', html.indexOf('ENDLESS_GROWTH=1.15') >= 0);
         ok = true; break;
       }
       console.log('   还有旧版缓存/构建中，20 秒后重试…');
     } catch (e) { console.log('#' + (i + 1), 'ERR', e.message); }
     await sleep(20000);
   }
-  console.log(ok ? '\nLIVE_OK 线上已经是 v1.1' : '\nLIVE_NOT_YET 还在构建，稍后再看');
+  console.log(ok ? '\nLIVE_OK 线上已经是最新版' : '\nLIVE_NOT_YET 还在构建，稍后再看');
 
   const api = async p => { const r = await fetch('https://api.github.com' + p, { headers: { 'user-agent': 'dsh', accept: 'application/vnd.github+json' } }); return { s: r.status, j: await r.json().catch(() => null) }; };
   const tools = await api('/repos/XCxi/shake-shake-beasts/contents/tools');
