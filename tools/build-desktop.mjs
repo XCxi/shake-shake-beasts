@@ -151,16 +151,22 @@ execFileSync(path.join(netDir, 'csc.exe'), [
 if (!fs.existsSync(exeOut)) throw new Error('csc 没产出 exe');
 fs.copyFileSync(exeOut, path.join(DIST, exeName));
 
-/* 4) 同步一份到桌面（用系统给的桌面路径，兼容 OneDrive 重定向） */
+/* 4) 可选：同步一份到桌面（默认不复制，需要时加 --desktop；用系统给的桌面路径，兼容 OneDrive 重定向） */
+const wantDesktop = process.argv.includes('--desktop');
 const deskZip = path.join(desktopDir, '震震萌兽-桌面版-' + VERSION + '.zip');
 const deskExe = path.join(desktopDir, '震震萌兽-安装包-' + VERSION + '.exe');
-fs.copyFileSync(path.join(DIST, zipName), deskZip);
-fs.copyFileSync(path.join(DIST, exeName), deskExe);
-fs.copyFileSync(path.join(REPO, 'index.html'), path.join(desktopDir, '震震萌兽.html'));
+if (wantDesktop) {
+  fs.copyFileSync(path.join(DIST, zipName), deskZip);
+  fs.copyFileSync(path.join(DIST, exeName), deskExe);
+  fs.copyFileSync(path.join(REPO, 'index.html'), path.join(desktopDir, '震震萌兽.html'));
+}
 
 log('\n产物：');
 for (const f of fs.readdirSync(DIST)) log('  dist/' + f + '  ' + fs.statSync(path.join(DIST, f)).size + ' 字节');
-log('  桌面/' + path.basename(deskZip) + '  ' + fs.statSync(deskZip).size + ' 字节');
-log('  桌面/' + path.basename(deskExe) + '  ' + fs.statSync(deskExe).size + ' 字节');
-log('  桌面/震震萌兽.html（已同步最新版）');
-log('\n桌面路径：' + desktopDir);
+if (wantDesktop) {
+  log('  桌面/' + path.basename(deskZip) + '  ' + fs.statSync(deskZip).size + ' 字节');
+  log('  桌面/' + path.basename(deskExe) + '  ' + fs.statSync(deskExe).size + ' 字节');
+} else {
+  log('  （没有往桌面复制：需要的话运行 node tools/build-desktop.mjs --desktop）');
+}
+log('\n产物只在 dist/ 里；桌面路径（如果要用 --desktop）：' + desktopDir);
