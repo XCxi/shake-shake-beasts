@@ -101,6 +101,7 @@ canvas{display:block;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
 
 /*==PHYS==*/
 /* 纯物理核心：不碰 DOM，可抽出来单独跑仿真。allowMerge=false 时只堆叠不合成（用来堆关卡初始局面） */
+var VERSION='1.2.1';
 var FIELD={W:400,H:620,WALL:8,GRAV:2000,REST:0.12,FRIC:0.24,MAXV:2000,MERGE_V:145};
 var CHAIN=[
   {e:'\uD83D\uDC2D',r:14,c1:'#fff4d8',c2:'#e6ba75'},
@@ -856,7 +857,7 @@ function home(){
   if(bestLevel>1) btns.push({label:'从第 1 关重敲',cls:'btn ghost',fn:function(){ bestLevel=1; LS.set('zz_best',1); startLevel(1,'campaign'); }});
   showCard({
     title:'🔨 震震萌兽',
-    sub:'一敲全塌 · 冲击波连锁合成',
+    sub:'一敲全塌 · 冲击波连锁合成 · v'+VERSION,
     body:'<div class="rules">'+
       '1️⃣ 在萌兽堆上<b>敲一下</b>，冲击波从落点扩散开<br>'+
       '2️⃣ 波前扫到的萌兽会被掀起来乱撞<br>'+
