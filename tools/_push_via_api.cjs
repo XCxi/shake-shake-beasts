@@ -12,8 +12,9 @@ const ROOT = path.join(__dirname, '..');
 const OWNER = 'XCxi', REPO = 'shake-shake-beasts', BRANCH = 'main';
 const TOKEN = process.env.GH_TOKEN;
 
-const git = (args) => execSync('git ' + args, { cwd: ROOT, encoding: 'utf8' }).replace(/\n$/, '');
-const raw = (args) => execSync('git ' + args, { cwd: ROOT, encoding: 'utf8' });
+/* 注意：必须关掉 core.quotepath，否则中文文件名会被转义成 \345... 导致读不到文件 */
+const git = (args) => execSync('git -c core.quotepath=false ' + args, { cwd: ROOT, encoding: 'utf8' }).replace(/\n$/, '');
+const raw = (args) => execSync('git -c core.quotepath=false ' + args, { cwd: ROOT, encoding: 'utf8' });
 
 async function api(method, p, body) {
   const r = await fetch('https://api.github.com' + p, {

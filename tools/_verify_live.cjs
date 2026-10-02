@@ -23,6 +23,9 @@ const sleep = ms => new Promise(s => setTimeout(s, ms));
         console.log('  萌兽图鉴 gallery       :', html.indexOf('function gallery') >= 0);
         console.log('  无尽模式 startEndless  :', html.indexOf('function startEndless') >= 0 && html.indexOf('planForEndless') >= 0);
         console.log('  无尽曲线 1.15 复利     :', html.indexOf('ENDLESS_GROWTH=1.15') >= 0);
+        console.log('  限时模式 startTimed    :', html.indexOf('function startTimed') >= 0 && html.indexOf('TIMED_SECONDS=60') >= 0);
+        console.log('  限时空投 spawnBatch    :', html.indexOf('function spawnBatch') >= 0);
+        console.log('  限时排行榜 zz_timed    :', html.indexOf("'zz_timed'") >= 0);
         ok = true; break;
       }
       console.log('   还有旧版缓存/构建中，20 秒后重试…');
